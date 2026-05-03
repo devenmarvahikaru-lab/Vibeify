@@ -40,7 +40,7 @@ function switchPage(pageId, title, el) {
 // 3. Search & Fetch Data
 async function fetchData(query, containerId = 'homeGrid') {
     try {
-        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=20&q=${encodeURIComponent(query)}&type=video&key=${API_KEY}`);
+        const res = await fetch(`https://vibeify-delta.vercel.app?part=snippet&maxResults=20&q=${encodeURIComponent(query)}&type=video&key=${API_KEY}`);
         const data = await res.json();
         
         if (data.error) {
