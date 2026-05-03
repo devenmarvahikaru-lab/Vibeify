@@ -9,7 +9,8 @@ let tokenClient;
 // 1. YouTube IFrame API
 function onYouTubeIframeAPIReady() {
     player = new YT.Player('yt-player', {
-        height: '0', width: '0',
+        height: '0', 
+        width: '0',
         events: { 
             'onReady': () => { 
                 fetchData('Top Hits 2026 Indonesia', 'homeGrid'); 
@@ -31,8 +32,10 @@ function switchPage(pageId, title, el) {
         n.classList.add('text-zinc-500');
     });
 
-    el.classList.remove('text-zinc-500');
-    el.classList.add('text-white');
+    if(el) {
+        el.classList.remove('text-zinc-500');
+        el.classList.add('text-white');
+    }
 
     if(pageId === 'libraryPage') renderPlaylists();
 }
@@ -40,7 +43,7 @@ function switchPage(pageId, title, el) {
 // 3. Search & Fetch Data
 async function fetchData(query, containerId = 'homeGrid') {
     try {
-        const res = await fetch(`https://vibeify-delta.vercel.app?part=snippet&maxResults=20&q=${encodeURIComponent(query)}&type=video&key=${API_KEY}`);
+        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=20&q=${encodeURIComponent(query)}&type=video&key=${API_KEY}`);
         const data = await res.json();
         
         if (data.error) {
@@ -48,10 +51,8 @@ async function fetchData(query, containerId = 'homeGrid') {
             return;
         }
 
-        [span_7](start_span)// Matikan filter ketat supaya lagu tidak hilang[span_7](end_span)
         const items = data.items || [];
         playlist = items; 
-        
         renderMusic(items, containerId);
     } catch (e) { 
         console.error("Gagal mengambil data atau kuota habis", e);
@@ -64,33 +65,38 @@ function renderMusic(songs, containerId) {
     const searchRes = document.getElementById('searchResults');
 
     if(containerId === 'homeGrid') {
-        [span_8](start_span)// Render Panggilan Cepat (Grid)[span_8](end_span)
-        grid.innerHTML = songs.slice(0, 6).map((s, i) => `
-            <div class="grid-item active:scale-95 transition" onclick="playMusic(${i})">
-                <img src="${s.snippet.thumbnails.high.url}" class="w-full h-full object-cover">
-                <div class="grid-overlay truncate">${s.snippet.title.substring(0, 20)}...</div>
-            </div>
-        `).join('');
-        [span_9](start_span)// Render Pilihan Cepat (List)[span_9](end_span)
-        list.innerHTML = songs.slice(6, 15).map((s, i) => musicItemTemplate(s, i)).join('');
+        if(grid) {
+            grid.innerHTML = songs.slice(0, 6).map((s, i) => `
+                <div class="grid-item active:scale-95 transition cursor-pointer" onclick="playMusic(${i})">
+                    <img src="${s.snippet.thumbnails.high.url}" class="w-full h-full object-cover rounded-lg">
+                    <div class="grid-overlay truncate text-[10px] p-1">${s.snippet.title.substring(0, 20)}...</div>
+                </div>
+            `).join('');
+        }
+        if(list) {
+            list.innerHTML = songs.slice(6, 15).map((s, i) => musicItemTemplate(s, i + 6)).join('');
+        }
     } else {
-        [span_10](start_span)// Render Search Results[span_10](end_span)
-        searchRes.innerHTML = songs.map((s, i) => musicItemTemplate(s, i)).join('');
+        if(searchRes) {
+            searchRes.innerHTML = songs.map((s, i) => musicItemTemplate(s, i)).join('');
+        }
     }
 }
 
 function musicItemTemplate(s, i) {
-    const cleanTitle = s.snippet.title.replace(/Official Video|Music Video|Official Audio/gi, '');
+    const cleanTitle = s.snippet.title.replace(/Official Video|Music Video|Official Audio|\[.*?\]|\(.*?\)/gi, '');
     return `
-        <div class="flex items-center justify-between active:bg-zinc-900 rounded-lg p-1 transition" onclick="playMusic(${i})">
+        <div class="flex items-center justify-between active:bg-zinc-900 rounded-lg p-2 transition cursor-pointer" onclick="playMusic(${i})">
             <div class="flex items-center gap-4 flex-1 overflow-hidden">
                 <img src="${s.snippet.thumbnails.default.url}" class="w-12 h-12 rounded-lg object-cover">
                 <div class="flex flex-col overflow-hidden">
-                    <h4 class="font-bold text-sm truncate">${cleanTitle}</h4>
+                    <h4 class="font-bold text-sm truncate text-white">${cleanTitle}</h4>
                     <p class="text-[11px] text-zinc-500 truncate uppercase">${s.snippet.channelTitle}</p>
                 </div>
             </div>
-            <i class="fas fa-plus text-zinc-400 p-2" onclick="event.stopPropagation();"></i>
+            <button onclick="event.stopPropagation(); addToLike('${s.id.videoId}')" class="p-2">
+                <i class="far fa-heart text-zinc-400"></i>
+            </button>
         </div>
     `;
 }
@@ -100,14 +106,18 @@ function playMusic(index) {
     if(!playlist[index]) return;
     currentIndex = index;
     const song = playlist[currentIndex];
-    player.loadVideoById(song.id.videoId);
-    document.getElementById('miniPlayer').classList.remove('hidden');
-    updateUI(song);
+    
+    if(player && player.loadVideoById) {
+        player.loadVideoById(song.id.videoId);
+        document.getElementById('miniPlayer').classList.remove('hidden');
+        updateUI(song);
+    }
 }
 
 function updateUI(song) {
-    const cleanTitle = song.snippet.title.replace(/Official Video|Music Video/gi, '');
+    const cleanTitle = song.snippet.title.replace(/Official Video|Music Video|Official Audio/gi, '');
     const thumb = song.snippet.thumbnails.high.url;
+    
     document.getElementById('miniTitle').innerText = cleanTitle;
     document.getElementById('miniArtist').innerText = song.snippet.channelTitle;
     document.getElementById('miniArt').src = thumb;
@@ -115,7 +125,10 @@ function updateUI(song) {
 
 function onStateChange(e) {
     const isPlaying = e.data === 1;
-    document.getElementById('miniPlayBtn').className = isPlaying ? 'fas fa-pause' : 'fas fa-play ml-0.5';
+    const playBtn = document.getElementById('miniPlayBtn');
+    if(playBtn) {
+        playBtn.className = isPlaying ? 'fas fa-pause' : 'fas fa-play ml-0.5';
+    }
     if(e.data === 0) playNext();
 }
 
@@ -124,16 +137,26 @@ function togglePlay() {
     state === 1 ? player.pauseVideo() : player.playVideo();
 }
 
-function playNext() { if(currentIndex < playlist.length-1) playMusic(currentIndex+1); }
+function playNext() { 
+    if(currentIndex < playlist.length - 1) {
+        playMusic(currentIndex + 1); 
+    }
+}
 
 // 5. Search Trigger
-document.getElementById('searchInput').addEventListener('keypress', (e) => {
-    if(e.key === 'Enter') {
-        fetchData(e.target.value, 'searchResults');
-    }
-});
+// Pastikan ID input di HTML adalah 'searchInput'
+const searchInput = document.getElementById('searchInput');
+if(searchInput) {
+    searchInput.addEventListener('keypress', (e) => {
+        if(e.key === 'Enter') {
+            fetchData(e.target.value, 'searchResults');
+            // Kita pindah ke explorePage karena di index.html kamu gak ada searchPage
+            switchPage('explorePage', 'Explore'); 
+        }
+    });
+}
 
-// 6. Auth & Library (Simplified)
+// 6. Auth & Library
 function initGoogleAuth() {
     if (typeof google !== 'undefined' && google.accounts) {
         if (!tokenClient) {
@@ -151,16 +174,27 @@ function renderPlaylists() {
     const container = document.getElementById('userPlaylists');
     if(!container) return;
     container.innerHTML = userPlaylists.length === 0 ? 
-        '<p class="text-zinc-500 text-xs">Belum ada playlist.</p>' :
-        userPlaylists.map(p => `<div class="p-3 bg-[#121212] rounded-xl">${p.name}</div>`).join('');
+        '<p class="text-zinc-500 text-xs p-4 text-center">Belum ada playlist.</p>' :
+        userPlaylists.map(p => `<div class="p-3 bg-[#121212] rounded-xl mb-2">${p.name}</div>`).join('');
 }
 
-// Progress Bar Logic
+function addToLike(videoId) {
+    if(!likedSongs.includes(videoId)) {
+        likedSongs.push(videoId);
+        localStorage.setItem('v_likes', JSON.stringify(likedSongs));
+        alert("Ditambahkan ke Favorit!");
+    }
+}
+
+// 7. Progress Bar Logic
 setInterval(() => {
-    if(player && player.getCurrentTime) {
-        const cur = player.getCurrentTime(), dur = player.getDuration();
-        const per = (cur/dur)*100 || 0;
-        const line = document.getElementById('miniProgressLine');
-        if(line) line.style.width = per + "%";
+    if(player && player.getCurrentTime && player.getDuration) {
+        const cur = player.getCurrentTime();
+        const dur = player.getDuration();
+        if (dur > 0) {
+            const per = (cur/dur)*100;
+            const line = document.getElementById('miniProgressLine');
+            if(line) line.style.width = per + "%";
+        }
     }
 }, 1000);
