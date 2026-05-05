@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vibeify Pro</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background: #080808; color: white; font-family: 'Plus Jakarta Sans', sans-serif; overflow: hidden; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(25px); border-top: 1px solid rgba(255, 255, 255, 0.1); }
+        .full-player { transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); z-index: 100; }
+        .hidden-scroll::-webkit-scrollbar { display: none; }
+        @keyframes vibe { 0%, 100% { transform: scaleY(0.5); } 50% { transform: scaleY(1.2); } }
+        .vibe-bar { animation: vibe 1.2s infinite ease-in-out; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const API_KEYS = [
+            "AIzaSyDOQ9aRwZ8Hduf1jf30odxP19zm9Nsx6xg",
+            "AIzaSyCT73_r5b0GmePh_XVRfCeZT8Gb5HHO3Zo",
+            "AIzaSyBF1mXy-UwjPEy8dEG9FJlPeXNXznXultI",
+            "AIzaSyBb55dA33rBPYC0oFYuUq4coxypA2kcUcY",
+            "AIzaSyCta8NgNAP82mUDaP5GDANDL6GNA5rAOF4"
+        ];
+
+        function VibeifyApp() {
+            const [view, setView] = useState('home');
+            const [query, setQuery] = useState('');
+            const [songs, setSongs] = useState([]);
+            const [likedSongs, setLikedSongs] = useState(() => JSON.parse(localStorage.getItem('vibe_liked')) || []);
+            const [currentTrack, setCurrentTrack] = useState(null);
+            const [isPlaying, setIsPlaying] = useState(false);
+            const [isExpanded, setIsExpanded] = useState(false);
+            const [loading, setLoading] = useState(false);
+            
+            // Simpan Liked Songs
+            useEffect(() => { localStorage.setItem('vibe_liked', JSON.stringify(likedSongs)); }, [likedSongs]);
+
+            const getRandomKey = () => API_KEYS[Math.floor(Math.random() * API_KEYS.length)];
+
+            const searchMusic = async (q) => {
+                setLoading(true); setQuery(q);
+                try {
+                    const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=25&q=${q}+music&type=video&key=${getRandomKey()}`);
+                    const data = await res.json();
+                    setSongs(data.items || []);
+                    setView('search');
+                } catch (e) { alert("API Limit! Coba lagi."); }
+                setLoading(false);
+            };
+
+            const navigate = (dir) => {
+                const idx = songs.findIndex(s => s.id.videoId === currentTrack.id.videoId);
+                const next = dir === 'next' ? idx + 1 : idx - 1;
+                if (songs[next]) setCurrentTrack(songs[next]);
+            };
+
+            const toggleLike = (e, track) => {
+                e?.stopPropagation();
+                const exists = likedSongs.find(s => s.id.videoId === track.id.videoId);
+                if (exists) setLikedSongs(likedSongs.filter(s => s.id.videoId !== track.id.videoId));
+                else setLikedSongs([...likedSongs, track]);
+            };
+
+            return (
+                <div className="h-screen flex flex-col relative bg-black">
+                    {/* YOUTUBE ENGINE (HIDDEN) */}
+                    {currentTrack && (
+                        <div className="hidden">
+                            <iframe 
+                                id="yt-player"
+                                src={`https://www.youtube.com/embed/${currentTrack.id.videoId}?autoplay=1&enablejsapi=1&controls=0&origin=${window.location.origin}`}
+                                allow="autoplay"
+                            ></iframe>
+                        </div>
+                    )}
+
+                    {/* Main UI */}
+                    <div className="flex-1 overflow-y-auto hidden-scroll p-6 pb-40">
+                        <div className="flex justify-between items-center mb-10">
+                            <h1 className="text-2xl font-black text-green-500 italic">VIBEIFY</h1>
+                            <i className="fa-solid fa-signal text-xs opacity-30"></i>
+                        </div>
+
+                        {view === 'home' && (
+                            <div className="animate-in fade-in duration-500">
+                                <h2 className="text-4xl font-black mb-8 leading-tight">Sync Your <br/><span className="text-white/30 italic">Mood</span></h2>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {[
+                                        {n:'HAPPY', i:'fa-sun', c:'bg-amber-900/40'},
+                                        {n:'SAD', i:'fa-cloud-showers-heavy', c:'bg-indigo-900/40'},
+                                        {n:'CHILL', i:'fa-leaf', c:'bg-emerald-900/40'},
+                                        {n:'ENERGY', i:'fa-bolt', c:'bg-orange-900/40'},
+                                        {n:'ROMANTIC', i:'fa-heart', c:'bg-rose-900/40'}
+                                    ].map(m => (
+                                        <div key={m.n} onClick={() => searchMusic(m.n)} className={`${m.c} p-6 rounded-[2rem] border border-white/5 active:scale-95 transition`}>
+                                            <i className={`fa-solid ${m.i} text-2xl mb-4`}></i>
+                                            <p className="text-[10px] font-black tracking-widest">{m.n}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {view === 'search' && (
+                            <div className="space-y-5">
+                                <input className="w-full bg-zinc-900/50 rounded-2xl p-4 border border-white/5 outline-none focus:border-green-500" placeholder="Cari lagu..." value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==='Enter'&&searchMusic(query)} />
+                                {songs.map(s => (
+                                    <div key={s.id.videoId} onClick={()=>{setCurrentTrack(s); setIsPlaying(true);}} className="flex items-center gap-4">
+                                        <img src={s.snippet.thumbnails.default.url} className="w-14 h-14 rounded-xl object-cover" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-bold truncate text-sm">{s.snippet.title}</p>
+                                            <p className="text-[10px] opacity-40 uppercase">{s.snippet.channelTitle}</p>
+                                        </div>
+                                        <i onClick={(e)=>toggleLike(e, s)} className={`fa-heart ${likedSongs.some(ls=>ls.id.videoId===s.id.videoId)?'fa-solid text-green-500':'fa-regular opacity-20'}`}></i>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {view === 'playlist' && (
+                            <div className="space-y-4">
+                                <h2 className="text-xl font-bold mb-4">Lagu Disukai</h2>
+                                {likedSongs.length === 0 ? <p className="text-zinc-600 italic">Belum ada lagu disukai.</p> : 
+                                    likedSongs.map(s => (
+                                        <div key={s.id.videoId} onClick={()=>setCurrentTrack(s)} className="flex items-center gap-4 bg-zinc-900/20 p-3 rounded-2xl">
+                                            <img src={s.snippet.thumbnails.default.url} className="w-12 h-12 rounded-xl" />
+                                            <p className="flex-1 font-bold text-xs truncate">{s.snippet.title}</p>
+                                            <i className="fa-solid fa-play text-green-500"></i>
+                                        </div>
+                                    ))
+                                }
+                            </div>
+                        )}
+
+                        {view === 'settings' && (
+                            <div className="mt-10 p-8 glass rounded-[2.5rem] border border-white/10">
+                                <p className="text-[10px] font-bold opacity-30 tracking-widest text-center mb-6 uppercase">Sync Account</p>
+                                <button onClick={()=>window.open('https://accounts.google.com/')} className="w-full bg-zinc-800 py-4 rounded-2xl font-bold active:scale-95 transition">
+                                    <i className="fa-brands fa-google mr-2"></i> Sinkronkan Sekarang
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Navbar */}
+                    <nav className="glass fixed bottom-0 w-full h-24 flex justify-around items-center px-6 z-40">
+                        <i onClick={()=>setView('home')} className={`fa-solid fa-house text-xl ${view==='home'?'text-green-500':'opacity-20'}`}></i>
+                        <i onClick={()=>setView('search')} className={`fa-solid fa-magnifying-glass text-xl ${view==='search'?'text-green-500':'opacity-20'}`}></i>
+                        <i onClick={()=>setView('playlist')} className={`fa-solid fa-list-ul text-xl ${view==='playlist'?'text-green-500':'opacity-20'}`}></i>
+                        <i onClick={()=>setView('settings')} className={`fa-solid fa-gear text-xl ${view==='settings'?'text-green-500':'opacity-20'}`}></i>
+                    </nav>
+
+                    {/* Player Area */}
+                    {currentTrack && (
+                        <div className={`full-player fixed left-0 w-full bg-[#0a0a0a] ${isExpanded ? 'top-0 h-screen p-8 rounded-none' : 'bottom-24 h-20 px-4 glass rounded-3xl mx-4 w-[calc(100%-2rem)] flex items-center'}`}>
+                            {isExpanded && (
+                                <div className="flex justify-between items-center mb-8">
+                                    <i onClick={()=>setIsExpanded(false)} className="fa-solid fa-chevron-down text-xl"></i>
+                                    <span className="text-[10px] font-bold tracking-[0.4em] opacity-40">SOUND ON</span>
+                                    <i className="fa-solid fa-ellipsis-vertical opacity-30"></i>
+                                </div>
+                            )}
+
+                            <div className={`${isExpanded ? 'w-full mb-10' : 'w-12 h-12 mr-3'}`} onClick={()=>!isExpanded && setIsExpanded(true)}>
+                                <img src={currentTrack.snippet.thumbnails.high.url} className={`w-full h-full object-cover shadow-2xl ${isExpanded ? 'rounded-[2.5rem] aspect-square' : 'rounded-xl'}`} />
+                            </div>
+
+                            <div className={`${isExpanded ? 'mb-10' : 'flex-1 overflow-hidden'}`} onClick={()=>!isExpanded && setIsExpanded(true)}>
+                                <h3 className={`font-black truncate ${isExpanded ? 'text-2xl mb-1' : 'text-xs'}`}>{currentTrack.snippet.title}</h3>
+                                <p className="text-zinc-500 text-[10px] uppercase tracking-wider font-bold">{currentTrack.snippet.channelTitle}</p>
+                            </div>
+
+                            <div className={`flex items-center ${isExpanded ? 'justify-between w-full mt-auto mb-10' : 'gap-4'}`}>
+                                {isExpanded && <i className="fa-solid fa-shuffle opacity-20"></i>}
+                                <div className="flex items-center gap-8 mx-auto">
+                                    {isExpanded && <i onClick={()=>navigate('prev')} className="fa-solid fa-backward-step text-3xl"></i>}
+                                    <button onClick={()=>setIsPlaying(!isPlaying)} className={`bg-white text-black rounded-full flex items-center justify-center ${isExpanded ? 'w-20 h-20' : 'w-10 h-10'}`}>
+                                        <i className={`fa-solid ${isPlaying ? 'fa-pause' : 'fa-play'} ${isExpanded ? 'text-2xl' : 'text-xs'}`}></i>
+                                    </button>
+                                    <i onClick={()=>navigate('next')} className={`fa-solid fa-forward-step ${isExpanded ? 'text-3xl' : 'text-lg'}`}></i>
+                                </div>
+                                {isExpanded && (
+                                    <div className="flex flex-col gap-8">
+                                        <i onClick={(e)=>toggleLike(e, currentTrack)} className={`text-2xl ${likedSongs.some(ls=>ls.id.videoId===currentTrack.id.videoId)?'fa-solid text-green-500':'fa-regular opacity-30'} fa-heart`}></i>
+                                        <i className="fa-solid fa-repeat opacity-20"></i>
+                                    </div>
+                                )}
+                            </div>
+
+                            {isExpanded && (
+                                <div className="flex gap-1 h-8 items-end justify-center opacity-30 mt-4">
+                                    {[...Array(15)].map((_, i) => (
+                                        <div key={i} className="w-1 bg-white vibe-bar" style={{ height: `${30 + Math.random()*70}%`, animationDelay: `${i*0.1}s` }}></div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<VibeifyApp />);
+    </script>
+</body>
+</html>
